@@ -9,9 +9,11 @@ import obd
 from rich.live import Live
 from rich.panel import Panel
 from rich.prompt import Confirm
+from rich.console import Group
+from rich.table import Table
 
 from .connection import Session, read_monitors
-from .ui import console, header, pause, unit_of, numeric_value
+from .ui import console, header, pause, unit_of, numeric_value, format_value
 
 LOG_DIR = Path("logs")
 
@@ -22,6 +24,22 @@ def _status_panel(path: Path, samples: int, elapsed: float) -> Panel:
             f"[dim]Press Ctrl + C to stop and save.[/]")
     return Panel(text, title="Drive Data Collection", border_style="green")
 
+def _live_table(commands, responses) -> Table:
+    table = Table(box=None, expand=True, show_header=False, pad_edge=False)
+    for _ in range(2):
+        table.add_column(no_wrap=True, overflow="ellipsis")
+        table.add_column(justify="right", style="bold")
+    
+    items = [(str(c.desc or c.name), format_value(r))
+            for c, r in zip(commands, responses)]
+    
+    half = (len(items)+1)//2
+    left, right = items[:half], items[half:]
+    
+    for i in range(half):
+        r = right[i] if i < len(right) else ("", "")
+        table.add_row(left[i][0], left[i][1], r[0],r[1])
+    return table
 
 def run(session: Session)-> None:
     header("Drive data collection")
@@ -61,7 +79,7 @@ def run(session: Session)-> None:
                 )
                 f.flush()
                 samples += 1
-                live.update(_status_panel(path, samples, elapsed))
+                live.update(Group(_status_panel(path, samples, elapsed), _live_table(commands, responses)))
                 responses = [connection.query(c) for c in commands]
         except KeyboardInterrupt:
             pass
